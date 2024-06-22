@@ -1,0 +1,25 @@
+#!/usr/bin/bpftrace
+#include <linux/skbuff.h>
+#include <linux/ip.h>
+#include <linux/socket.h>
+
+kprobe:__dev_queue_xmit
+{
+	@dev_queue_xmit[tid]=count();
+	@skb[tid]=(struct sk_buff *)arg0;
+}
+
+kprobe:__dev_queue_xmit
+/@skb[tid]/
+{
+	$skb = @skb[tid];
+	$iph = (struct iphdr *)($skb->head + $skb->network_header);
+	$sip = ntop(AF_INET, $iph->saddr);
+	$dip = ntop(AF_INET, $iph->daddr);
+
+
+	if ($iph->daddr == $1 || $iph->daddr == $2){
+		printf("[+] Found the request to %s \n", $dip);
+		printf("[-] pid=%d, thread_id=%d, comm=%s \n", pid,tid,comm);
+	}
+}
